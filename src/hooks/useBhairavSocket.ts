@@ -15,47 +15,43 @@ interface UseBhairavSocketReturn {
   clearMessages: () => void;
 }
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://127.0.0.1:18789';
-
 export function useBhairavSocket(): UseBhairavSocketReturn {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "🔱 Hello! I'm Bhairav, your Film Director AI. I can help you create video ads, generate images, voiceovers, and manage your creative workflow. What would you like to create today?",
+      content: "Hello! I'm Bhairav, your Film Director AI. I can help you create video ads, generate images, voiceovers, and manage your creative workflow. What would you like to create today?",
       timestamp: new Date(),
     },
   ]);
   const [tasks, setTasks] = useState<DirectorTask[]>([]);
   const [assets, setAssets] = useState<GeneratedAsset[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([
-    { id: 'ideogram', name: 'Ideogram', status: 'idle', avatar: '🎨' },
-    { id: 'runway', name: 'Runway', status: 'idle', avatar: '🎬' },
-    { id: 'elevenlabs', name: 'ElevenLabs', status: 'idle', avatar: '🎙️' },
-    { id: 'ghl', name: 'GoHighLevel', status: 'idle', avatar: '📊' },
+  const [agents] = useState<Agent[]>([
+    { id: 'ideogram', name: 'Ideogram', status: 'idle', avatar: '' },
+    { id: 'runway', name: 'Runway', status: 'idle', avatar: '' },
+    { id: 'elevenlabs', name: 'ElevenLabs', status: 'idle', avatar: '' },
+    { id: 'ghl', name: 'GoHighLevel', status: 'idle', avatar: '' },
   ]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
+  const sessionIdRef = useRef<string>(`bhairav-${Date.now()}`);
 
   // Check connection on mount
   useEffect(() => {
     checkConnection();
-    const interval = setInterval(checkConnection, 30000); // Check every 30s
+    const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const checkConnection = async () => {
     try {
-      const response = await fetch(`${GATEWAY_URL}/health`, {
+      const response = await fetch('/api/chat', {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
       });
-      setIsConnected(response.ok);
-      if (!response.ok) {
+      const data = await response.json();
+      setIsConnected(data.status === 'connected');
+      if (data.status !== 'connected') {
         setError('Gateway not responding');
       } else {
         setError(null);
@@ -81,39 +77,41 @@ export function useBhairavSocket(): UseBhairavSocketReturn {
     setError(null);
 
     try {
-      // For now, simulate a response - this will be connected to the real backend
-      // In production, this would use WebSocket or SSE for real-time updates
+      // Call our API route which proxies to Clawdbot
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: content,
+          sessionId: sessionIdRef.current,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
       
-      // Simulate agent working
-      const updatedAgents = [...agents];
-      const randomAgent = updatedAgents[Math.floor(Math.random() * updatedAgents.length)];
-      randomAgent.status = 'working';
-      randomAgent.currentTask = content.substring(0, 50);
-      setAgents(updatedAgents);
-
-      // Simulate response delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Reset agent status
-      randomAgent.status = 'completed';
-      randomAgent.currentTask = undefined;
-      setAgents([...updatedAgents]);
-
       // Add assistant response
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `🔱 I understand you want to "${content}". Let me work on that for you. I'll coordinate with the necessary tools (Ideogram for images, Runway for video, ElevenLabs for voice) to create what you need.`,
+        content: data.response || data.message || 'I received your message but got an unexpected response format.',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
       setIsConnected(true);
 
-      // Reset agent after delay
-      setTimeout(() => {
-        randomAgent.status = 'idle';
-        setAgents([...updatedAgents]);
-      }, 2000);
+      // Handle any tasks or assets returned
+      if (data.tasks) {
+        setTasks(prev => [...prev, ...data.tasks]);
+      }
+      if (data.assets) {
+        setAssets(prev => [...prev, ...data.assets]);
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -121,21 +119,21 @@ export function useBhairavSocket(): UseBhairavSocketReturn {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `⚠️ Connection error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
+        content: `Connection error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
-  }, [agents]);
+  }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([
       {
         id: Date.now().toString(),
         role: 'assistant',
-        content: "🔱 Chat cleared. Ready for a new project!",
+        content: "Chat cleared. Ready for a new project!",
         timestamp: new Date(),
       },
     ]);
