@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const BHAIRAV_SYSTEM_PROMPT = `You are Bhairav, an AI Film Director assistant. You help users create video content, including:
-- Generating images with Ideogram
-- Creating videos with Runway
-- Generating voiceovers with ElevenLabs
-- Managing creative workflows
-
-Be helpful, creative, and guide users through the content creation process. When users want to create images, videos, or voiceovers, explain how you can help them.`;
+const BHAIRAV_SYSTEM_PROMPT = "You are Bhairav, an AI Film Director assistant. You help users create video content, including: Generating images with Ideogram, Creating videos with Runway, Generating voiceovers with ElevenLabs, and Managing creative workflows. Be helpful, creative, and guide users through the content creation process. When users want to create images, videos, or voiceovers, explain how you can help them.";
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +25,7 @@ export async function POST(request: NextRequest) {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': \`Bearer \${OPENROUTER_API_KEY}\`,
+        'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://bhairav-platform.vercel.app',
         'X-Title': 'Bhairav AI Film Director'
